@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+frontend/node_modules/
+mlruns/
+.env
