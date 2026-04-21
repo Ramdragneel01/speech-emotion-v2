@@ -2,89 +2,287 @@
 import { useRef, useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
+const MAX_UPLOAD_MB = Number(import.meta.env.VITE_MAX_UPLOAD_MB || 5);
 
 function App() {
-    const mediaRecorderRef = useRef(null);
-    const chunksRef = useRef([]);
+    const audioContextRef = useRef(null);
+    const sourceNodeRef = useRef(null);
+    const processorNodeRef = useRef(null);
+    const pcmChunksRef = useRef([]);
+    const streamRef = useRef(null);
     const [recording, setRecording] = useState(false);
     const [result, setResult] = useState(null);
-    const [status, setStatus] = useState("Idle");
+    const [status, setStatus] = useState("Ready");
+    const [errorMessage, setErrorMessage] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [lastFileName, setLastFileName] = useState("");
 
     /**
-     * Start browser microphone capture with MediaRecorder.
+     * Send one audio blob to backend and update UI state.
      */
-    async function startRecording() {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        chunksRef.current = [];
+    async function analyzeAudioBlob(blob, fileName = "recording.wav") {
+        if (blob.size > MAX_UPLOAD_MB * 1024 * 1024) {
+            setErrorMessage(`File exceeds ${MAX_UPLOAD_MB}MB limit`);
+            setStatus("Validation error");
+            return;
+        }
 
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                chunksRef.current.push(event.data);
-            }
-        };
+        setBusy(true);
+        setErrorMessage("");
+        setResult(null);
+        setLastFileName(fileName);
+        setStatus("Analyzing audio");
 
-        mediaRecorder.onstop = async () => {
-            const blob = new Blob(chunksRef.current, { type: "audio/wav" });
-            const file = new File([blob], "recording.wav", { type: "audio/wav" });
-            const formData = new FormData();
-            formData.append("file", file);
+        const formData = new FormData();
+        formData.append("file", new File([blob], fileName, { type: "audio/wav" }));
 
-            setStatus("Analyzing...");
+        try {
             const response = await fetch(`${API_BASE_URL}/predict`, {
                 method: "POST",
                 body: formData,
             });
 
+            const payload = await response.json();
             if (!response.ok) {
+                setErrorMessage(payload?.detail || "Prediction failed");
                 setStatus("Prediction failed");
                 return;
             }
 
-            const payload = await response.json();
             setResult(payload);
-            setStatus("Done");
+            setStatus("Prediction complete");
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Network error");
+            setStatus("Request error");
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    /**
+     * Encode a mono PCM float buffer as WAV bytes for backend compatibility.
+     */
+    function encodeWav(samples, sampleRate) {
+        const buffer = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(buffer);
+
+        const writeString = (offset, value) => {
+            for (let i = 0; i < value.length; i += 1) {
+                view.setUint8(offset + i, value.charCodeAt(i));
+            }
         };
 
-        mediaRecorderRef.current = mediaRecorder;
-        mediaRecorder.start();
-        setRecording(true);
-        setStatus("Recording...");
+        writeString(0, "RIFF");
+        view.setUint32(4, 36 + samples.length * 2, true);
+        writeString(8, "WAVE");
+        writeString(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeString(36, "data");
+        view.setUint32(40, samples.length * 2, true);
+
+        let offset = 44;
+        for (let i = 0; i < samples.length; i += 1) {
+            const s = Math.max(-1, Math.min(1, samples[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+            offset += 2;
+        }
+
+        return new Blob([view], { type: "audio/wav" });
+    }
+
+    /**
+     * Merge recorded PCM chunks into one contiguous float array.
+     */
+    function mergePcmChunks(chunks) {
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const merged = new Float32Array(totalLength);
+        let offset = 0;
+        chunks.forEach((chunk) => {
+            merged.set(chunk, offset);
+            offset += chunk.length;
+        });
+        return merged;
+    }
+
+    /**
+        * Start browser microphone capture with Web Audio API PCM capture.
+     */
+    async function startRecording() {
+        if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
+            setErrorMessage("Audio capture is not supported in this browser");
+            setStatus("Unsupported browser");
+            return;
+        }
+
+        try {
+            setErrorMessage("");
+            setResult(null);
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+            pcmChunksRef.current = [];
+
+            const AudioContextImpl = window.AudioContext || window.webkitAudioContext;
+            const context = new AudioContextImpl();
+            audioContextRef.current = context;
+
+            const source = context.createMediaStreamSource(stream);
+            sourceNodeRef.current = source;
+            const processor = context.createScriptProcessor(4096, 1, 1);
+            processorNodeRef.current = processor;
+
+            processor.onaudioprocess = (event) => {
+                const channelData = event.inputBuffer.getChannelData(0);
+                pcmChunksRef.current.push(new Float32Array(channelData));
+            };
+
+            source.connect(processor);
+            processor.connect(context.destination);
+
+            setRecording(true);
+            setStatus("Recording");
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Microphone access failed");
+            setStatus("Microphone error");
+        }
     }
 
     /**
      * Stop active recording session and trigger prediction upload.
      */
     function stopRecording() {
-        if (!mediaRecorderRef.current) {
+        if (!recording) {
             return;
         }
-        mediaRecorderRef.current.stop();
+
+        const source = sourceNodeRef.current;
+        const processor = processorNodeRef.current;
+        const context = audioContextRef.current;
+
+        if (source && processor) {
+            source.disconnect(processor);
+            processor.disconnect();
+        }
+
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => track.stop());
+            streamRef.current = null;
+        }
+
+        if (context) {
+            context.close();
+        }
+
+        const merged = mergePcmChunks(pcmChunksRef.current);
+        const sampleRate = context?.sampleRate || 44100;
+        const wavBlob = encodeWav(merged, sampleRate);
+
         setRecording(false);
+        setStatus("Preparing upload");
+        analyzeAudioBlob(wavBlob, "recording.wav");
+    }
+
+    /**
+     * Handle direct WAV file upload for non-microphone flows.
+     */
+    async function onFileSelected(event) {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        if (!file.name.toLowerCase().endsWith(".wav")) {
+            setErrorMessage("Only .wav files are supported");
+            setStatus("Validation error");
+            return;
+        }
+
+        await analyzeAudioBlob(file, file.name);
+        event.target.value = "";
     }
 
     return (
-        <main style={{ maxWidth: 640, margin: "40px auto", fontFamily: "Segoe UI, sans-serif" }}>
-            <h1>speech-emotion-v2</h1>
-            <p>Status: {status}</p>
-            <div style={{ display: "flex", gap: 12 }}>
-                <button type="button" onClick={startRecording} disabled={recording}>
+        <main
+            style={{
+                maxWidth: 720,
+                margin: "32px auto",
+                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                padding: 16,
+            }}
+        >
+            <h1>Speech Emotion V2</h1>
+            <p>Analyze spoken audio with file upload or live microphone recording.</p>
+            <p aria-live="polite">
+                <strong>Status:</strong> {status}
+            </p>
+
+            <section aria-label="Recorder controls" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button type="button" onClick={startRecording} disabled={recording || busy}>
                     Start Recording
                 </button>
-                <button type="button" onClick={stopRecording} disabled={!recording}>
+                <button type="button" onClick={stopRecording} disabled={!recording || busy}>
                     Stop Recording
                 </button>
-            </div>
+                <label htmlFor="audio-upload" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    Upload WAV:
+                    <input
+                        id="audio-upload"
+                        type="file"
+                        accept=".wav,audio/wav"
+                        onChange={onFileSelected}
+                        disabled={busy || recording}
+                    />
+                </label>
+            </section>
+
+            {errorMessage && (
+                <p role="alert" style={{ marginTop: 16, color: "#9b1c1c", fontWeight: 600 }}>
+                    {errorMessage}
+                </p>
+            )}
 
             {result && (
-                <section style={{ marginTop: 24 }}>
+                <section style={{ marginTop: 24 }} aria-label="Prediction result">
                     <h2>Prediction</h2>
                     <p>
-                        Emotion: <strong>{result.emotion}</strong>
+                        <strong>File:</strong> {lastFileName || "recording.wav"}
                     </p>
-                    <p>Confidence: {Number(result.confidence).toFixed(3)}</p>
+                    <p>
+                        <strong>Emotion:</strong> {result.emotion}
+                    </p>
+                    <p>
+                        <strong>Confidence:</strong> {Number(result.confidence).toFixed(3)}
+                    </p>
+                    <p>
+                        <strong>Duration:</strong> {Number(result.duration_seconds).toFixed(2)}s
+                    </p>
+                    <p>
+                        <strong>Sample rate:</strong> {result.sample_rate_hz} Hz
+                    </p>
+
+                    <h3>Emotion Scores</h3>
+                    <ul style={{ paddingInlineStart: 20 }}>
+                        {Object.entries(result.scores)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([label, score]) => (
+                                <li key={label}>
+                                    {label}: {Number(score).toFixed(3)}
+                                </li>
+                            ))}
+                    </ul>
                 </section>
             )}
+
+            <section style={{ marginTop: 24 }} aria-label="Constraints">
+                <h2>Upload Limits</h2>
+                <p>Max file size: {MAX_UPLOAD_MB}MB</p>
+                <p>Allowed format: WAV</p>
+            </section>
         </main>
     );
 }

@@ -1,7 +1,14 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv312/
+api/.venv/
+api/.venv312/
 node_modules/
 frontend/node_modules/
+frontend/dist/
 mlruns/
+coverage/
+pytest.xml
 .env
+models/releases/
