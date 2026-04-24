@@ -10,7 +10,9 @@ Current coverage focus:
 1. Health endpoint contract.
 2. Predict endpoint file validation.
 3. Predict endpoint successful WAV inference.
-4. Inference helper duration and output constraints.
+4. API key enforcement for protected endpoints when configured.
+5. Rate-limit behavior on prediction endpoint.
+6. Inference helper duration and output constraints.
 
 ## Frontend Validation
 

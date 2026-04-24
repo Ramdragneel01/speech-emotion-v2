@@ -3,6 +3,13 @@
 
 Base URL (local): `http://127.0.0.1:8001`
 
+## Authentication
+
+When `SPEECH_API_KEY` is configured, the following endpoints require header `X-API-Key`:
+
+1. `GET /model/info`
+2. `POST /predict`
+
 ## GET /health
 
 Returns service readiness metadata.
@@ -52,6 +59,10 @@ Success response fields:
 Error payload:
 1. `detail`
 2. `request_id`
+
+Additional protected-endpoint errors:
+1. `401 Unauthorized` when API key is required and missing/invalid.
+2. `429 Too Many Requests` when per-client rate limit is exceeded.
 
 ## GET /metrics
 

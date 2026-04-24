@@ -10,9 +10,10 @@ import os
 from pathlib import Path
 from threading import Lock
 from time import perf_counter
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -32,6 +33,7 @@ class Settings:
     max_upload_bytes: int
     max_requests_per_minute: int
     cors_origins: list[str]
+    api_key: str
 
 
 class InMemoryRateLimiter:
@@ -57,6 +59,12 @@ class InMemoryRateLimiter:
                 return False
             queue.append(now)
         return True
+
+    def clear(self) -> None:
+        """Reset limiter state for deterministic tests and controlled resets."""
+
+        with self._lock:
+            self._store.clear()
 
 
 class PredictionResponse(BaseModel):
@@ -94,12 +102,25 @@ def _load_settings() -> Settings:
         max_upload_bytes=int(os.getenv("MAX_UPLOAD_BYTES", "5000000")),
         max_requests_per_minute=int(os.getenv("MAX_REQUESTS_PER_MINUTE", "120")),
         cors_origins=[origin.strip() for origin in origin_value.split(",") if origin.strip()],
+        api_key=os.getenv("SPEECH_API_KEY", "").strip(),
     )
+
+
+def _require_api_key(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+) -> None:
+    """Enforce optional API key auth on protected inference endpoints."""
+
+    if not settings.api_key:
+        return
+    if x_api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 settings = _load_settings()
 model = load_model(Path(settings.model_path))
 limiter = InMemoryRateLimiter(window_seconds=60)
+AuthDep = Annotated[None, Depends(_require_api_key)]
 
 REQUEST_COUNTER = Counter(
     "speech_api_requests_total",
@@ -183,7 +204,7 @@ def health() -> HealthResponse:
 
 
 @app.get("/model/info")
-def model_info() -> dict[str, object]:
+def model_info(_: AuthDep = None) -> dict[str, object]:
     """Expose model metadata for debugging and release verification."""
 
     return {
@@ -198,6 +219,7 @@ def model_info() -> dict[str, object]:
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(
     request: Request,
+    _: AuthDep = None,
     file: UploadFile = File(...),
     expected_sample_rate: int | None = Query(default=None, ge=8000, le=96000),
 ) -> PredictionResponse:

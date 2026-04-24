@@ -19,9 +19,10 @@
 3. `MODEL_PATH`
 4. `MAX_UPLOAD_BYTES`
 5. `MAX_REQUESTS_PER_MINUTE`
-6. `CORS_ORIGINS`
-7. `ENABLE_MLFLOW_TRACKING`
-8. `MLFLOW_TRACKING_URI`
+6. `SPEECH_API_KEY` (optional; enables API key auth on protected endpoints)
+7. `CORS_ORIGINS`
+8. `ENABLE_MLFLOW_TRACKING`
+9. `MLFLOW_TRACKING_URI`
 
 ## Production Hardening Checklist
 
@@ -30,6 +31,11 @@
 3. Mount model artifacts and logs on durable storage.
 4. Configure metrics scraping and alerting on latency/error spikes.
 5. Rotate and audit deployment credentials regularly.
+
+## CI and Release
+
+1. CI workflow: `.github/workflows/ci.yml`
+2. Release workflow: `.github/workflows/release.yml`
 
 ## Rollback
 

@@ -34,6 +34,13 @@ pip install -r requirements.txt
 uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
+Optional backend security env vars:
+
+```bash
+SPEECH_API_KEY=
+MAX_REQUESTS_PER_MINUTE=120
+```
+
 ### Frontend
 
 ```bash
@@ -45,8 +52,8 @@ npm run dev -- --host 0.0.0.0 --port 4174
 ## API Endpoints
 
 1. `GET /health` - readiness and model metadata.
-2. `GET /model/info` - model version, labels, and feature schema.
-3. `POST /predict` - upload WAV audio for emotion prediction.
+2. `GET /model/info` - model version, labels, and feature schema (protected when API key is configured).
+3. `POST /predict` - upload WAV audio for emotion prediction (protected when API key is configured).
 4. `GET /metrics` - Prometheus metrics.
 
 ## Training and Model Lifecycle
@@ -96,6 +103,8 @@ cd frontend && npm run build
 6. `SECURITY.md`
 7. `CONTRIBUTING.md`
 8. `CHANGELOG.md`
+9. `.claude/CLAUDE.md`
+10. `.github/workflows/release.yml`
 
 ## Service Endpoints (local)
 
