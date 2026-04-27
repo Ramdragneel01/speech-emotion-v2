@@ -3,7 +3,7 @@ fastapi==0.136.1
 uvicorn==0.35.0
 python-multipart==0.0.26
 soundfile==0.13.1
-numpy==2.3.0
+numpy==2.4.4
 prometheus-client==0.23.1
 pydantic==2.11.7
 pytest==9.0.3
