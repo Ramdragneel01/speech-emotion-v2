@@ -3,6 +3,9 @@
 
 Production-ready speech emotion inference platform with recorder/upload frontend, secured FastAPI backend, deterministic training pipeline, and model lifecycle controls.
 
+![CI Status](https://github.com/Ramdragneel01/speech-emotion-v2/actions/workflows/ci.yml/badge.svg)
+![Release Status](https://github.com/Ramdragneel01/speech-emotion-v2/actions/workflows/release.yml/badge.svg)
+
 ## Implemented Scope
 
 1. Frontend recorder and WAV upload flows with confidence and failure messaging.
@@ -49,6 +52,16 @@ npm ci
 npm run dev -- --host 0.0.0.0 --port 4174
 ```
 
+## Visual Evidence
+
+Architecture overview:
+
+![speech-emotion-v2 architecture overview](docs/assets/architecture-overview.svg)
+
+Frontend prediction flow preview:
+
+![speech-emotion-v2 frontend preview](docs/assets/frontend-preview.svg)
+
 ## API Endpoints
 
 1. `GET /health` - readiness and model metadata.
@@ -86,6 +99,32 @@ pytest -q
 cd frontend && npm run build
 ```
 
+## Production Verification
+
+Run before release tag creation:
+
+```bash
+# backend
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m compileall -q api src tests
+python -m pip check
+pytest -q --maxfail=1
+pip-audit -r requirements.txt --progress-spinner off
+
+# frontend
+cd frontend
+npm ci
+npm run build
+npm audit --omit=dev --audit-level=high
+```
+
+Expected outcome:
+
+1. Backend compile, dependency consistency, and tests pass.
+2. Frontend production build completes.
+3. No high-severity dependency vulnerabilities remain.
+
 ## Security and Accessibility Highlights
 
 1. Input validation for extension, MIME type, file size, and duration.
@@ -110,4 +149,17 @@ cd frontend && npm run build
 
 1. API: http://127.0.0.1:8001
 2. Frontend: http://127.0.0.1:4174
+
+## Limits and Roadmap
+
+Current limits:
+
+1. Inference is file-based and does not yet support streaming audio sessions.
+2. Default model artifact contract is JSON-centric and may be suboptimal for large deployments.
+
+Roadmap:
+
+1. Add streaming inference endpoint with bounded session controls.
+2. Add model artifact signing and verification for release integrity.
+3. Add fairness and drift scorecards in CI artifact reports.
 

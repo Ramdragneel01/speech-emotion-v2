@@ -1,0 +1,73 @@
+<svg width="1200" height="680" viewBox="0 0 1200 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">speech-emotion-v2 frontend preview</title>
+  <desc id="desc">Illustrative frontend preview showing recorder controls and emotion confidence bars.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1120"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#1f2937"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 32px 'Segoe UI', Arial, sans-serif; fill: #f8fafc; }
+      .meta { font: 500 16px 'Segoe UI', Arial, sans-serif; fill: #cbd5e1; }
+      .label { font: 600 15px 'Segoe UI', Arial, sans-serif; fill: #e5e7eb; }
+      .value { font: 700 14px 'Segoe UI', Arial, sans-serif; fill: #e2e8f0; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="680" fill="url(#bg)"/>
+  <text x="48" y="58" class="title">speech-emotion-v2 Frontend Preview</text>
+  <text x="48" y="88" class="meta">Illustrative recorder/upload workflow and predicted confidence distribution</text>
+
+  <rect x="44" y="126" width="520" height="510" rx="14" fill="url(#panel)" stroke="#334155"/>
+  <text x="70" y="166" class="label">Audio Input</text>
+  <rect x="70" y="186" width="468" height="80" rx="12" fill="#0f172a" stroke="#334155"/>
+  <text x="92" y="235" class="meta">WAV file selected: customer-call-042.wav</text>
+
+  <rect x="70" y="292" width="146" height="44" rx="10" fill="#1d4ed8"/>
+  <text x="96" y="320" class="value">Record</text>
+
+  <rect x="232" y="292" width="146" height="44" rx="10" fill="#0ea5e9"/>
+  <text x="264" y="320" class="value">Upload</text>
+
+  <rect x="394" y="292" width="146" height="44" rx="10" fill="#22c55e"/>
+  <text x="420" y="320" class="value">Predict</text>
+
+  <rect x="70" y="372" width="468" height="236" rx="12" fill="#0f172a" stroke="#334155"/>
+  <text x="92" y="410" class="label">Request Status</text>
+  <text x="92" y="442" class="meta">Request ID: req_4f83c7a2</text>
+  <text x="92" y="472" class="meta">Model: centroid-v2.2</text>
+  <text x="92" y="502" class="meta">Latency: 173 ms</text>
+  <text x="92" y="532" class="meta">Top emotion: calm</text>
+
+  <rect x="594" y="126" width="562" height="510" rx="14" fill="url(#panel)" stroke="#334155"/>
+  <text x="620" y="166" class="label">Emotion Confidence</text>
+
+  <text x="620" y="220" class="meta">calm</text>
+  <rect x="700" y="204" width="408" height="24" rx="8" fill="#0f172a"/>
+  <rect x="700" y="204" width="343" height="24" rx="8" fill="#34d399"/>
+  <text x="1050" y="221" class="value">0.84</text>
+
+  <text x="620" y="270" class="meta">happy</text>
+  <rect x="700" y="254" width="408" height="24" rx="8" fill="#0f172a"/>
+  <rect x="700" y="254" width="220" height="24" rx="8" fill="#60a5fa"/>
+  <text x="940" y="271" class="value">0.54</text>
+
+  <text x="620" y="320" class="meta">sad</text>
+  <rect x="700" y="304" width="408" height="24" rx="8" fill="#0f172a"/>
+  <rect x="700" y="304" width="130" height="24" rx="8" fill="#f59e0b"/>
+  <text x="846" y="321" class="value">0.32</text>
+
+  <text x="620" y="370" class="meta">angry</text>
+  <rect x="700" y="354" width="408" height="24" rx="8" fill="#0f172a"/>
+  <rect x="700" y="354" width="95" height="24" rx="8" fill="#ef4444"/>
+  <text x="812" y="371" class="value">0.23</text>
+
+  <text x="620" y="420" class="meta">neutral</text>
+  <rect x="700" y="404" width="408" height="24" rx="8" fill="#0f172a"/>
+  <rect x="700" y="404" width="170" height="24" rx="8" fill="#a78bfa"/>
+  <text x="886" y="421" class="value">0.41</text>
+</svg>

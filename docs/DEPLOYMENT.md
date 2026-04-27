@@ -9,8 +9,19 @@
 3. Start frontend:
    `cd frontend && npm run dev -- --host 0.0.0.0 --port 4174`
 4. Verify endpoints:
-   - `GET /health`
-   - `POST /predict`
+1. `GET /health`
+2. `POST /predict`
+
+## Production Topology
+
+Recommended layout:
+
+1. Frontend static bundle hosted behind CDN.
+2. FastAPI backend behind HTTPS ingress with request size limits.
+3. Model artifacts stored on durable storage and promoted atomically.
+4. Prometheus scraping `/metrics` from internal monitoring network.
+
+For high-throughput deployments, run backend with multiple workers and externalized model artifact distribution.
 
 ## Environment Variables
 
@@ -31,14 +42,19 @@
 3. Mount model artifacts and logs on durable storage.
 4. Configure metrics scraping and alerting on latency/error spikes.
 5. Rotate and audit deployment credentials regularly.
+6. Enforce `SPEECH_API_KEY` for protected inference and model-info endpoints.
+7. Pin container/base dependencies to vetted versions before promotion.
+8. Define retention policy for uploaded sample artifacts and logs.
 
 ## CI and Release
 
 1. CI workflow: `.github/workflows/ci.yml`
 2. Release workflow: `.github/workflows/release.yml`
+3. Release tags: `v*.*.*` trigger test/build/audit checks before publication.
 
 ## Rollback
 
 1. Replace `models/latest/model.json` with known-good release model.
 2. Restart API process.
 3. Validate with `/health` and sample `/predict` request.
+4. Roll back frontend bundle to matching model/API compatibility version if needed.
