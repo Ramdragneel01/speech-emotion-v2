@@ -4,7 +4,7 @@ uvicorn==0.35.0
 python-multipart==0.0.26
 soundfile==0.13.1
 numpy==2.3.0
-prometheus-client==0.23.1
+prometheus-client==0.25.0
 pydantic==2.11.7
 pytest==9.0.3
 httpx==0.28.1
