@@ -10,7 +10,10 @@
    `cd frontend && npm run dev -- --host 0.0.0.0 --port 4174`
 4. Verify endpoints:
 1. `GET /health`
-2. `POST /predict`
+2. `GET /ready`
+3. `GET /healthz`
+4. `GET /readyz`
+5. `POST /predict`
 
 ## Production Topology
 
@@ -56,5 +59,5 @@ For high-throughput deployments, run backend with multiple workers and externali
 
 1. Replace `models/latest/model.json` with known-good release model.
 2. Restart API process.
-3. Validate with `/health` and sample `/predict` request.
+3. Validate with `/health`, `/ready`, and sample `/predict` request.
 4. Roll back frontend bundle to matching model/API compatibility version if needed.

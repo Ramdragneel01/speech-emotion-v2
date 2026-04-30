@@ -10,6 +10,17 @@ When `SPEECH_API_KEY` is configured, the following endpoints require header `X-A
 1. `GET /model/info`
 2. `POST /predict`
 
+## Health and Readiness
+
+1. `GET /health`
+2. `GET /ready`
+3. `GET /healthz` (alias for `/health`)
+4. `GET /readyz` (alias for `/ready`)
+
+Readiness behavior:
+
+1. Returns `200` with `status=ready` when runtime model metadata is available.
+
 ## GET /health
 
 Returns service readiness metadata.
@@ -57,12 +68,40 @@ Success response fields:
 8. `bytes_received`
 
 Error payload:
-1. `detail`
-2. `request_id`
+
+All API errors return a normalized payload:
+
+```json
+{
+	"error": {
+		"code": "string",
+		"message": "string",
+		"request_id": "string",
+		"details": []
+	}
+}
+```
+
+Common error codes:
+
+1. `bad_request`
+2. `unauthorized`
+3. `payload_too_large`
+4. `unsupported_media_type`
+5. `validation_error`
+6. `rate_limited`
+7. `internal_error`
 
 Additional protected-endpoint errors:
-1. `401 Unauthorized` when API key is required and missing/invalid.
-2. `429 Too Many Requests` when per-client rate limit is exceeded.
+1. `401 Unauthorized` when API key is required and missing/invalid (`api_key_invalid`).
+2. `429 Too Many Requests` when per-client rate limit is exceeded (`rate_limited`).
+3. `429` responses include `Retry-After: 60`.
+
+All responses include request correlation and security headers:
+
+1. `X-Request-ID`
+2. `X-Content-Type-Options: nosniff`
+3. `X-Frame-Options: DENY`
 
 ## GET /metrics
 

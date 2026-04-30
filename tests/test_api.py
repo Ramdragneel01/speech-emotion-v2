@@ -17,6 +17,28 @@ from api.main import app
 client = TestClient(app)
 
 
+def _assert_error_contract(
+    response,
+    expected_status: int,
+    expected_code: str,
+    expected_message: str | None = None,
+    expect_details: bool = False,
+) -> None:
+    """Validate normalized API error contract fields."""
+
+    assert response.status_code == expected_status
+    payload = response.json()
+    assert isinstance(payload.get("error"), dict)
+    assert payload["error"]["code"] == expected_code
+    assert isinstance(payload["error"]["message"], str)
+    if expected_message is not None:
+        assert payload["error"]["message"] == expected_message
+    assert isinstance(payload["error"]["request_id"], str)
+    assert payload["error"]["request_id"]
+    if expect_details:
+        assert "details" in payload["error"]
+
+
 def _wav_payload() -> bytes:
     """Create valid mono WAV bytes for prediction endpoint tests."""
 
@@ -61,6 +83,22 @@ def test_health_endpoint_returns_runtime_diagnostics():
     assert payload["max_requests_per_minute"] > 0
 
 
+def test_probe_alias_endpoints_return_healthy_state():
+    """Readiness and probe aliases should be available for deployment checks."""
+
+    ready = client.get("/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
+    health_alias = client.get("/healthz")
+    assert health_alias.status_code == 200
+    assert health_alias.json()["status"] == "ok"
+
+    ready_alias = client.get("/readyz")
+    assert ready_alias.status_code == 200
+    assert ready_alias.json()["status"] == "ready"
+
+
 def test_predict_rejects_non_wav_upload():
     """Prediction endpoint should reject unsupported file extensions."""
 
@@ -68,8 +106,12 @@ def test_predict_rejects_non_wav_upload():
         "/predict",
         files={"file": ("invalid.txt", b"hello", "text/plain")},
     )
-    assert response.status_code == 400
-    assert "Only .wav" in response.json()["detail"]
+    _assert_error_contract(
+        response,
+        expected_status=400,
+        expected_code="bad_request",
+        expected_message="Only .wav uploads are supported",
+    )
 
 
 def test_predict_accepts_valid_wav_upload():
@@ -97,7 +139,12 @@ def test_predict_requires_api_key_when_configured(monkeypatch):
         "/predict",
         files={"file": ("sample.wav", _wav_payload(), "audio/wav")},
     )
-    assert unauthorized.status_code == 401
+    _assert_error_contract(
+        unauthorized,
+        expected_status=401,
+        expected_code="unauthorized",
+        expected_message="api_key_invalid",
+    )
 
     authorized = client.post(
         "/predict",
@@ -115,6 +162,60 @@ def test_health_remains_public_when_api_key_enabled(monkeypatch):
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
+    ready_response = client.get("/ready")
+    assert ready_response.status_code == 200
+    assert ready_response.json()["status"] == "ready"
+
+
+def test_phase1_auth_required_contract(monkeypatch):
+    """Protected endpoints should require API key with normalized unauthorized errors."""
+
+    _override_settings(monkeypatch, api_key="phase1-secret")
+
+    unauthorized = client.get("/model/info")
+    _assert_error_contract(
+        unauthorized,
+        expected_status=401,
+        expected_code="unauthorized",
+        expected_message="api_key_invalid",
+    )
+
+    invalid_key = client.get("/model/info", headers={"X-API-Key": "wrong"})
+    _assert_error_contract(
+        invalid_key,
+        expected_status=401,
+        expected_code="unauthorized",
+        expected_message="api_key_invalid",
+    )
+
+    authorized = client.get("/model/info", headers={"X-API-Key": "phase1-secret"})
+    assert authorized.status_code == 200
+
+
+def test_phase1_error_contract_response():
+    """Missing multipart file should return normalized validation error payload."""
+
+    response = client.post("/predict")
+    _assert_error_contract(
+        response,
+        expected_status=422,
+        expected_code="validation_error",
+        expected_message="request_validation_failed",
+        expect_details=True,
+    )
+
+
+def test_error_responses_include_request_and_security_headers(monkeypatch):
+    """Error responses should carry request tracing and baseline security headers."""
+
+    _override_settings(monkeypatch, api_key="header-secret")
+    response = client.get("/model/info")
+
+    assert response.status_code == 401
+    assert response.headers.get("X-Request-ID")
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
+
 
 def test_predict_rate_limit_returns_429(monkeypatch):
     """Prediction endpoint should return 429 once per-client quota is exceeded."""
@@ -131,4 +232,10 @@ def test_predict_rate_limit_returns_429(monkeypatch):
         "/predict",
         files={"file": ("sample.wav", _wav_payload(), "audio/wav")},
     )
-    assert second.status_code == 429
+    _assert_error_contract(
+        second,
+        expected_status=429,
+        expected_code="rate_limited",
+        expected_message="rate_limited",
+    )
+    assert second.headers.get("Retry-After") == "60"
